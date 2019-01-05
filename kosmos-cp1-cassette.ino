@@ -57,22 +57,13 @@ void loop() {
 
         case receivingControlSignal:
           // second rising edge (first rising edge of after the control signal): This is the beginning of the first actual transmission cycle
-          Serial.println("End of control signal. Starting to receive.");
+          Serial.println("Should not happen: End of control signal. Starting to receive.");
           state = inTransmission;
           break;
 
         case inTransmission: 
-          // rising edge - end of last bit
-          unsigned long highSingnalLength = lastFallingEdgeTimestamp - lastRisingEdgeTimestamp;
-          unsigned long lowSignalLength   = timestamp - lastFallingEdgeTimestamp;
-          int value = highSingnalLength < lowSignalLength ? 1 : 0;
-    
-//            Serial.print(highSingnalLength);
-//            Serial.print("\t");
-//            Serial.print(lowSignalLength);
-//            Serial.print("\t");
-          Serial.print(value);
-          bitCount++;
+          // rising edge - middle
+          lastRisingEdgeTimestamp = timestamp;
           break;
 
         default:
@@ -80,7 +71,6 @@ void loop() {
           break;
       }
 
-      lastRisingEdgeTimestamp = timestamp;
       
     } else {
       
@@ -91,22 +81,41 @@ void loop() {
 
         case receivingControlSignal:
           // first falling edge - end of control signal
-          Serial.println("Transmission starting...");
+          // start of first cycle
+          Serial.println("End of control signal. Transmission starting...");
+          state = inTransmission;
           break;
 
         case inTransmission:
-          lastFallingEdgeTimestamp = timestamp;
+          unsigned long lowSignalLength = lastRisingEdgeTimestamp - lastFallingEdgeTimestamp;
+          unsigned long highSignalLength   = timestamp - lastRisingEdgeTimestamp;
+          int value = highSignalLength < lowSignalLength ? 0 : 1;
+    
+//            Serial.print(highSingnalLength);
+//            Serial.print("\t");
+//            Serial.print(lowSignalLength);
+//            Serial.print("\t");
+          Serial.print(value);
+          bitCount++;
+
+          if (bitCount % 16 == 0) {
+            Serial.println("");
+          } else if (bitCount % 8 == 0) {
+            Serial.print("\t");
+          }
           break;
 
         default:
           Serial.println("Oops, this should not have happened (falling)...");
           break;
       }
+
+      lastFallingEdgeTimestamp = timestamp;      
     }
 
   }
 
-  if (state == inTransmission && timestamp - lastRisingEdgeTimestamp > 1000) {
+  if (state == inTransmission && timestamp - lastFallingEdgeTimestamp > 1000) {
     // no rising edge since more than a second - we assume the transmission is over
     Serial.println("\n");
     Serial.println("Transmittion ended.");
