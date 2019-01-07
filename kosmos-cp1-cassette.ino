@@ -16,6 +16,9 @@ void setup() {
   pinMode(ledPin, OUTPUT);
   pinMode(cp1Pin, INPUT);
   Serial.begin(9600);
+  while(!Serial) {
+    delay(2);
+  }
   Serial.println("Starting.");
   Serial.print("Current value on the line: ");
   Serial.println(digitalRead(cp1Pin));
@@ -25,13 +28,57 @@ unsigned long lastRisingEdgeTimestamp  = 0;
 unsigned long lastFallingEdgeTimestamp = 0;
 int lastLevel;
 
+enum programMode { mainMenuMode, saveMode, loadMode };
+programMode mode = mainMenuMode;
+
 int bitCount = 0;
 
-enum receivingState { idle, receivingControlSignal, inTransmission };
+byte data[256];
 
+enum receivingState { idle, receivingControlSignal, inTransmission };
 receivingState state = idle;
 
 void loop() {
+  switch (mode) {
+    case mainMenuMode:
+      mainMenu();
+      break;
+    case saveMode:
+      save();
+      break;
+    case loadMode:
+      break;
+    default: break;
+  }
+}
+
+void mainMenu() {
+  Serial.println("Kosmos CP1 Cassette Emulator");
+  Serial.println("----------------------------");
+  Serial.println("");
+  Serial.println("Please select an option:");
+  Serial.println("");
+  Serial.println("s: Save");
+  Serial.println("l: Load");
+  Serial.println("");
+  char input;
+  while (true) {
+    input = Serial.read();
+    if (input == 's') {
+      Serial.println("\nSave");
+      Serial.println("\nPlease press 'CAS' on your CP1.");
+      mode = saveMode;
+      break;
+    } else if (input == 'l') {
+      Serial.println("\nLoad");
+      Serial.println("\nPlease press 'CAL' on your CP1.");
+      mode = loadMode;
+      break;
+    }
+  }
+}
+
+void save() {
 
   int level = digitalRead(cp1Pin);  
   digitalWrite(ledPin, level);
@@ -98,6 +145,9 @@ void loop() {
           Serial.print(value);
           bitCount++;
 
+          int byteCount = bitCount/8;
+          int bit
+
           if (bitCount % 16 == 0) {
             Serial.println("");
           } else if (bitCount % 8 == 0) {
@@ -115,16 +165,22 @@ void loop() {
 
   }
 
+  lastLevel = level;
+
   if (state == inTransmission && timestamp - lastFallingEdgeTimestamp > 1000) {
     // no rising edge since more than a second - we assume the transmission is over
     Serial.println("\n");
-    Serial.println("Transmittion ended.");
-    Serial.print("Bits read: ");
-    Serial.println(bitCount);
+    Serial.println("Transmission ended.");
+    if (bitCount == 2048) {
+      // TODO with the memory extension installed, it can be 4096 bits
+    } else {
+      Serial.println("\nUnexpected amount of data read. Either you have pressed 'STP' on the CP1 or there was a transmission error. Please try again.");
+    }
     state = idle;
     bitCount = 0;
+    mode = mainMenuMode;
+    return;
   }
   
   delay(4);
-  lastLevel = level;
 }
