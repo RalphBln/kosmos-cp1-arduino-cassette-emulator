@@ -82,6 +82,8 @@ void mainMenu() {
 
 void save() {
 
+  pinMode(cp1Pin, INPUT);
+
   int level = digitalRead(cp1Pin);  
   digitalWrite(ledPin, level);
   
@@ -208,7 +210,9 @@ void save() {
 }
 
 void load() {
-  
+
+  pinMode(cp1Pin, OUTPUT);
+
   EEPROM.get(0, data);
   
   Serial.println("\nPlease press 'CAL' on the CP1 within the next 5 seconds.");
