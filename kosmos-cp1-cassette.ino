@@ -34,6 +34,7 @@ programMode mode = mainMenuMode;
 int bitCount = 0;
 
 byte data[256];
+byte currentByte;
 
 enum receivingState { idle, receivingControlSignal, inTransmission };
 receivingState state = idle;
@@ -47,6 +48,7 @@ void loop() {
       save();
       break;
     case loadMode:
+      load();
       break;
     default: break;
   }
@@ -138,21 +140,35 @@ void save() {
           unsigned long highSignalLength   = timestamp - lastRisingEdgeTimestamp;
           int value = highSignalLength < lowSignalLength ? 0 : 1;
     
-//            Serial.print(highSingnalLength);
-//            Serial.print("\t");
-//            Serial.print(lowSignalLength);
-//            Serial.print("\t");
-          Serial.print(value);
-          bitCount++;
 
           int byteCount = bitCount/8;
-          int bit
+          int currentBitPlace = bitCount % 8;
 
-          if (bitCount % 16 == 0) {
-            Serial.println("");
-          } else if (bitCount % 8 == 0) {
-            Serial.print("\t");
+          bitWrite(currentByte, currentBitPlace, value);
+
+//          Serial.print("Bit ");
+//          Serial.print(currentBitPlace);
+//          Serial.print("=");
+//          Serial.print(value);
+//          Serial.print(", currentByte=");
+//          Serial.println(currentByte);
+
+          if (currentBitPlace == 7) {
+            data[byteCount] = currentByte;
+            currentByte = 0;
+//            Serial.print("Stored value: ");
+//            Serial.println(data[byteCount]);
+//            Serial.print("New byte ");
+//            Serial.println(byteCount);
           }
+
+          bitCount++;
+
+//          if (bitCount % 16 == 0) {
+//            Serial.println("");
+//          } else if (bitCount % 8 == 0) {
+//            Serial.print("\t");
+//          }
           break;
 
         default:
@@ -172,7 +188,13 @@ void save() {
     Serial.println("\n");
     Serial.println("Transmission ended.");
     if (bitCount == 2048) {
-      // TODO with the memory extension installed, it can be 4096 bits
+      // TODO with the memory extension installed, it can be 4096 bits/512 bytes
+//      Serial.println("Bytes received:");
+//      for (int i=0; i<256; i++) {
+//        Serial.print(data[i]);
+//        Serial.print("\t");
+//      }
+      EEPROM.put(0, data);
     } else {
       Serial.println("\nUnexpected amount of data read. Either you have pressed 'STP' on the CP1 or there was a transmission error. Please try again.");
     }
@@ -183,4 +205,45 @@ void save() {
   }
   
   delay(4);
+}
+
+void load() {
+  
+  EEPROM.get(0, data);
+  
+  Serial.println("\nPlease press 'CAL' on the CP1 within the next 5 seconds.");
+
+  // send control signal for 5 seconds (we don't need 16 seconds)
+  digitalWrite(cp1Pin, HIGH);
+  delay(16000);
+
+  Serial.println("\nTransmitting data to CP1...\n");
+
+  for (int i=0; i<256; i++) {
+    currentByte = data[i];
+    for (int j=0; j<8; j++) {
+      int value = bitRead(currentByte, j);
+      Serial.print(value);
+      if (value == 1) {
+        // 1 = short low, long high
+        digitalWrite(cp1Pin, LOW);
+        digitalWrite(ledPin, LOW);
+        delay(32);
+        digitalWrite(cp1Pin, HIGH);
+        digitalWrite(ledPin, HIGH);
+        delay(65);
+      } else {
+        // 0 = long low, short high
+        digitalWrite(cp1Pin, LOW);
+        digitalWrite(ledPin, LOW);
+        delay(65);
+        digitalWrite(cp1Pin, HIGH);
+        digitalWrite(ledPin, HIGH);
+        delay(32);
+      }
+    }
+  }
+  digitalWrite(cp1Pin, LOW);
+  Serial.println("\nDone.");
+  mode = mainMenuMode;
 }
